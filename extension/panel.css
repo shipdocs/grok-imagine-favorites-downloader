@@ -1,0 +1,170 @@
+#grok-downloader-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 340px;
+  height: 100vh;
+  background: #0f172a;
+  color: #f8fafc;
+  box-shadow: -6px 0 18px rgba(15, 23, 42, 0.35);
+  border-left: 1px solid rgba(148, 163, 184, 0.35);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.28s ease;
+  z-index: 2147483600;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  pointer-events: none;
+}
+
+#grok-downloader-panel.open {
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+body.grok-downloader-panel-open {
+  margin-right: 340px;
+  transition: margin-right 0.28s ease;
+}
+
+#grok-downloader-panel .grok-panel-inner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 16px;
+  gap: 16px;
+}
+
+#grok-downloader-panel .grok-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+#grok-downloader-panel .grok-header h1 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+#grok-downloader-panel .grok-header p {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: #cbd5f5;
+  line-height: 1.4;
+}
+
+#grok-downloader-panel button {
+  background: #2563eb;
+  color: #f8fafc;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+#grok-downloader-panel button:hover:not([disabled]) {
+  background: #1d4ed8;
+}
+
+#grok-downloader-panel button[disabled] {
+  opacity: 0.6;
+  cursor: default;
+}
+
+#grok-downloader-panel .grok-close {
+  background: none;
+  color: #94a3b8;
+  font-size: 1.2rem;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+#grok-downloader-panel .grok-close:hover {
+  background: rgba(148, 163, 184, 0.2);
+}
+
+#grok-downloader-panel .grok-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+#grok-downloader-panel .grok-debug-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: #cbd5f5;
+}
+
+#grok-downloader-panel .grok-debug-toggle input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  accent-color: #38bdf8;
+}
+
+#grok-downloader-panel .grok-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 0.8rem;
+}
+
+#grok-downloader-panel .grok-progress-track {
+  height: 10px;
+  border-radius: 4px;
+  background: rgba(148, 163, 184, 0.25);
+  overflow: hidden;
+}
+
+#grok-downloader-panel .grok-progress-fill {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, #38bdf8, #2563eb);
+  transition: width 0.2s ease;
+}
+
+#grok-downloader-panel .grok-progress-label {
+  text-align: right;
+  color: #cbd5f5;
+}
+
+#grok-downloader-panel .grok-status {
+  flex: 1;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 6px;
+  padding: 10px;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  overflow-y: auto;
+}
+
+#grok-downloader-panel .grok-status-entry {
+  margin: 0 0 6px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+#grok-downloader-panel .grok-status-entry:last-child {
+  margin-bottom: 0;
+}
+
+#grok-downloader-panel .grok-status-entry.debug {
+  color: #38bdf8;
+  font-size: 0.8rem;
+}
+
+#grok-downloader-panel .grok-footer {
+  font-size: 0.75rem;
+  color: #64748b;
+  text-align: center;
+}
+*** End

@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Grok Favorites Downloader",
+  "description": "Collect and download Grok Imagine favorites directly from the favorites page.",
+  "version": "0.3.0",
+  "action": {
+    "default_title": "Grok Downloader"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": ["downloads", "scripting", "tabs", "storage"],
+  "host_permissions": [
+    "https://grok.com/imagine/*",
+    "https://imagine-public.x.ai/*",
+    "https://assets.grok.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://grok.com/imagine/*"],
+      "js": ["panel.js"],
+      "css": ["panel.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}

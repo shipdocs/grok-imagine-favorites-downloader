@@ -405,7 +405,12 @@ async function scrapeFavorites(debugEnabled = false) {
       seenUrls.add(url);
       const kind = node.tagName.toLowerCase() === 'video' ? 'video' : 'image';
       const poster = kind === 'video' ? (node.poster || node.getAttribute('poster') || '') : '';
-      collectedItems.push({ url, kind, poster });
+
+      // Find the closest container that groups related media (card/article/section)
+      const container = node.closest('article, section, [role="article"], div[data-testid*="card"], div[class*="card"]') || node.parentElement;
+      const containerId = container ? Array.from(document.body.querySelectorAll('*')).indexOf(container) : -1;
+
+      collectedItems.push({ url, kind, poster, containerId });
 
       if (collectedItems.length % 50 === 0) {
         log(`Collected ${collectedItems.length} unique media items so far`);
@@ -512,80 +517,46 @@ async function scrapeFavorites(debugEnabled = false) {
     return { status: 'not_ready', items: [], debug };
   }
 
-  const normalizeUrl = (rawUrl) => {
-    try {
-      const url = new URL(rawUrl, location.href);
-      url.hash = '';
-      return url.toString();
-    } catch (_error) {
-      return rawUrl;
+  // Group items by container to pair images and videos
+  const containerGroups = new Map();
+  collectedItems.forEach((item) => {
+    const key = item.containerId;
+    if (!containerGroups.has(key)) {
+      containerGroups.set(key, []);
     }
-  };
-
-  const extractUuid = (src) => {
-    const match = src && src.match(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/);
-    return match ? match[0] : '';
-  };
-
-  const extractStem = (src) => {
-    try {
-      const url = new URL(src, location.href);
-      const segments = url.pathname.split('/').filter(Boolean);
-      const lastSegment = segments.pop() || '';
-      const stem = lastSegment.replace(/\.[^.]+$/, '');
-      if (stem && stem !== lastSegment) {
-        return stem;
-      }
-      const fallbackSegment = segments.pop() || '';
-      return fallbackSegment.replace(/\.[^.]+$/, '');
-    } catch (_error) {
-      return '';
-    }
-  };
-
-  const sanitizeBaseName = (raw) =>
-    (raw || '')
-      .trim()
-      .replace(/[^a-zA-Z0-9._-]+/g, '_')
-      .replace(/_{2,}/g, '_')
-      .replace(/^_+|_+$/g, '')
-      .slice(0, 96);
-
-  // Derive base names for each item
-  const items = collectedItems.map((item, index) => {
-    const uuid = extractUuid(item.url);
-    const stem = extractStem(item.url);
-    let baseName;
-
-    if (uuid) {
-      baseName = sanitizeBaseName(uuid);
-    } else if (stem && !/^generated_video$/i.test(stem) && !/^download$/i.test(stem)) {
-      baseName = sanitizeBaseName(stem);
-    } else {
-      baseName = `favorite-${String(index + 1).padStart(4, '0')}`;
-    }
-
-    return {
-      url: item.url,
-      kind: item.kind,
-      baseName,
-      poster: item.poster || ''
-    };
+    containerGroups.get(key).push(item);
   });
 
-  log(`Processed ${items.length} items with base names.`);
+  // Assign sequential group IDs to each container
+  let groupCounter = 0;
+  const items = [];
+
+  containerGroups.forEach((mediaGroup) => {
+    groupCounter += 1;
+
+    mediaGroup.forEach((item) => {
+      items.push({
+        url: item.url,
+        kind: item.kind,
+        groupId: groupCounter,
+        poster: item.poster || ''
+      });
+    });
+  });
+
+  log(`Processed ${items.length} items into ${groupCounter} groups.`);
   return { status: 'ok', items, debug };
 }
 
 function prepareQueue(rawItems, sessionFolder) {
   const usedNames = new Set();
-  const typeCounters = { image: 0, video: 0, other: 0 };
+  const typeCounters = { image: 0, video: 0 };
 
   return rawItems.map((item) => {
     const kind = item.kind === 'video' ? 'video' : item.kind === 'image' ? 'image' : 'other';
     typeCounters[kind] = (typeCounters[kind] || 0) + 1;
     const extension = deriveExtension(kind, item.url);
-    const base = sanitizeBaseName(item.baseName) || `${kind}-${String(typeCounters[kind]).padStart(3, '0')}`;
+    const base = `${typeCounters[kind]}-${kind}`;
     const uniqueFilename = ensureUnique(`${base}${extension}`, usedNames);
     usedNames.add(uniqueFilename.toLowerCase());
 

@@ -108,48 +108,23 @@
   unfavoriteView.hidden = true;
   unfavoriteView.innerHTML = `
     <h3>✓ Downloads Complete!</h3>
-    <p>Select favorites to unfavorite (<span id="grok-total-count">0</span> items):</p>
+    <p><span id="grok-total-count">0</span> favorites downloaded successfully.</p>
 
-    <div class="grok-filter-section">
-      <h4>Quick Selection</h4>
-
+    <div class="grok-unfav-options">
+      <label>Unfavorite:</label>
       <div class="grok-filter-group">
-        <button id="grok-select-all" class="grok-filter-btn" type="button">All</button>
-        <button id="grok-select-none" class="grok-filter-btn" type="button">None</button>
-        <button id="grok-invert" class="grok-filter-btn" type="button">Invert</button>
+        <button id="grok-unfav-all" class="grok-filter-btn" type="button">All</button>
+        <button id="grok-unfav-first-100" class="grok-filter-btn" type="button">First 100</button>
+        <button id="grok-unfav-first-200" class="grok-filter-btn" type="button">First 200</button>
+        <button id="grok-unfav-first-300" class="grok-filter-btn" type="button">First 300</button>
       </div>
-
       <div class="grok-filter-group">
-        <label>First:</label>
-        <button class="grok-range-btn grok-filter-btn" data-range="first-100" type="button">100</button>
-        <button class="grok-range-btn grok-filter-btn" data-range="first-200" type="button">200</button>
-        <button class="grok-range-btn grok-filter-btn" data-range="first-300" type="button">300</button>
-        <button class="grok-range-btn grok-filter-btn" data-range="first-500" type="button">500</button>
-      </div>
-
-      <div class="grok-filter-group">
-        <label>Last:</label>
-        <button class="grok-range-btn grok-filter-btn" data-range="last-100" type="button">100</button>
-        <button class="grok-range-btn grok-filter-btn" data-range="last-200" type="button">200</button>
-        <button class="grok-range-btn grok-filter-btn" data-range="last-300" type="button">300</button>
-        <button class="grok-range-btn grok-filter-btn" data-range="last-500" type="button">500</button>
-      </div>
-
-      <div class="grok-filter-group">
-        <label>Content Type:</label>
-        <button class="grok-type-btn grok-filter-btn" data-type="both" type="button">Image + Video</button>
-        <button class="grok-type-btn grok-filter-btn" data-type="image-only" type="button">Image Only</button>
-        <button class="grok-type-btn grok-filter-btn" data-type="video-only" type="button">Video Only</button>
+        <button id="grok-unfav-last-100" class="grok-filter-btn" type="button">Last 100</button>
+        <button id="grok-unfav-last-200" class="grok-filter-btn" type="button">Last 200</button>
+        <button id="grok-unfav-last-300" class="grok-filter-btn" type="button">Last 300</button>
       </div>
     </div>
 
-    <div class="grok-selection-info">
-      <span id="grok-selected-count">0 selected</span>
-    </div>
-
-    <div id="grok-items-list" class="grok-items-list"></div>
-
-    <button id="grok-unfavorite-btn" class="grok-danger-btn" type="button">Unfavorite Selected (<span id="grok-unfav-count">0</span>)</button>
     <button id="grok-skip-unfavorite" class="grok-skip-btn" type="button">Skip (Keep All Favorited)</button>
   `;
   inner.appendChild(unfavoriteView);
@@ -325,12 +300,6 @@
     return labels[type] || type;
   }
 
-  function updateSelectedCount() {
-    const count = unfavoriteView.querySelectorAll('.grok-unfav-check:checked').length;
-    unfavoriteView.querySelector('#grok-selected-count').textContent = `${count} selected`;
-    unfavoriteView.querySelector('#grok-unfav-count').textContent = count;
-  }
-
   function showUnfavoriteView(items) {
     if (!items || items.length === 0) {
       return; // Don't show unfavorite UI if no items
@@ -339,32 +308,16 @@
     state.allItems = items;
     state.showingUnfavoriteUI = true;
 
-    // Hide download view elements
+    // Hide download view elements (but keep statusBox visible for logs)
     controls.hidden = true;
     progressContainer.hidden = true;
-    statusBox.hidden = true;
     footer.hidden = true;
 
     // Show unfavorite view
     unfavoriteView.hidden = false;
 
-    // Update total count
+    // Update count
     unfavoriteView.querySelector('#grok-total-count').textContent = items.length;
-
-    // Render items list
-    const itemsList = unfavoriteView.querySelector('#grok-items-list');
-    itemsList.innerHTML = items.map(item => `
-      <div class="grok-item" data-type="${item.mediaType}">
-        <input type="checkbox" class="grok-unfav-check" data-index="${item.index}" checked>
-        <img src="${item.thumbnailUrl}" class="grok-thumb" onerror="this.style.display='none'">
-        <div class="grok-item-info">
-          <span class="grok-item-name">${item.filename}</span>
-          <span class="grok-badge grok-badge-${item.mediaType}">${formatMediaType(item.mediaType)}</span>
-        </div>
-      </div>
-    `).join('');
-
-    updateSelectedCount();
 
     // Attach event listeners
     setupUnfavoriteEventListeners();
@@ -384,88 +337,76 @@
   }
 
   function setupUnfavoriteEventListeners() {
-    // Select All/None/Invert
-    unfavoriteView.querySelector('#grok-select-all').addEventListener('click', () => {
-      unfavoriteView.querySelectorAll('.grok-unfav-check').forEach(cb => cb.checked = true);
-      updateSelectedCount();
-    });
-
-    unfavoriteView.querySelector('#grok-select-none').addEventListener('click', () => {
-      unfavoriteView.querySelectorAll('.grok-unfav-check').forEach(cb => cb.checked = false);
-      updateSelectedCount();
-    });
-
-    unfavoriteView.querySelector('#grok-invert').addEventListener('click', () => {
-      unfavoriteView.querySelectorAll('.grok-unfav-check').forEach(cb => cb.checked = !cb.checked);
-      updateSelectedCount();
-    });
-
-    // Range selection
-    unfavoriteView.querySelectorAll('.grok-range-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const [direction, count] = btn.dataset.range.split('-');
-        const checkboxes = Array.from(unfavoriteView.querySelectorAll('.grok-unfav-check'));
-        const num = parseInt(count);
-
-        // Deselect all first
-        checkboxes.forEach(cb => cb.checked = false);
-
-        // Select range
-        if (direction === 'first') {
-          checkboxes.slice(0, num).forEach(cb => cb.checked = true);
-        } else if (direction === 'last') {
-          checkboxes.slice(-num).forEach(cb => cb.checked = true);
-        }
-
-        updateSelectedCount();
-      });
-    });
-
-    // Media type filters
-    unfavoriteView.querySelectorAll('.grok-type-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const type = btn.dataset.type;
-
-        // Deselect all first
-        unfavoriteView.querySelectorAll('.grok-unfav-check').forEach(cb => cb.checked = false);
-
-        // Select matching items
-        state.allItems.forEach((item, idx) => {
-          const checkbox = unfavoriteView.querySelector(`.grok-unfav-check[data-index="${idx}"]`);
-          if (checkbox && item.mediaType === type) {
-            checkbox.checked = true;
-          }
-        });
-
-        updateSelectedCount();
-      });
-    });
-
-    // Checkbox change listener
-    unfavoriteView.querySelectorAll('.grok-unfav-check').forEach(cb => {
-      cb.addEventListener('change', updateSelectedCount);
-    });
-
-    // Unfavorite button
-    unfavoriteView.querySelector('#grok-unfavorite-btn').addEventListener('click', () => {
-      const selected = Array.from(unfavoriteView.querySelectorAll('.grok-unfav-check:checked'))
-        .map(cb => parseInt(cb.dataset.index));
-
-      if (selected.length === 0) {
+    const executeUnfavorite = (indices, description) => {
+      if (indices.length === 0) {
+        pushHistory({ text: 'No items to unfavorite', state: 'error', timestamp: Date.now() });
         return;
       }
 
+      pushHistory({ text: `Starting unfavorite for ${description} (${indices.length} items)...`, state: 'info', timestamp: Date.now() });
+
       chrome.runtime.sendMessage({
         type: 'EXECUTE_UNFAVORITES',
-        indices: selected
+        indices: indices
       }, (response) => {
         if (chrome.runtime.lastError || response?.status === 'error') {
           const errorMsg = chrome.runtime.lastError?.message || response?.message || 'Unknown error';
           pushHistory({ text: `Error: ${errorMsg}`, state: 'error', timestamp: Date.now() });
-        } else {
-          hideUnfavoriteView();
+          return;
         }
+
+        pushHistory({
+          text: `✓ Unfavorite complete`,
+          state: 'info',
+          timestamp: Date.now(),
+        });
+
+        hideUnfavoriteView();
       });
+    };
+
+    // Unfavorite All
+    unfavoriteView.querySelector('#grok-unfav-all').addEventListener('click', () => {
+      const allIndices = Array.from({ length: state.allItems.length }, (_, i) => i);
+      executeUnfavorite(allIndices, 'all');
+    });
+
+    // Unfavorite First X
+    unfavoriteView.querySelector('#grok-unfav-first-100').addEventListener('click', () => {
+      const indices = Array.from({ length: Math.min(100, state.allItems.length) }, (_, i) => i);
+      executeUnfavorite(indices, 'first 100');
+    });
+
+    unfavoriteView.querySelector('#grok-unfav-first-200').addEventListener('click', () => {
+      const indices = Array.from({ length: Math.min(200, state.allItems.length) }, (_, i) => i);
+      executeUnfavorite(indices, 'first 200');
+    });
+
+    unfavoriteView.querySelector('#grok-unfav-first-300').addEventListener('click', () => {
+      const indices = Array.from({ length: Math.min(300, state.allItems.length) }, (_, i) => i);
+      executeUnfavorite(indices, 'first 300');
+    });
+
+    // Unfavorite Last X
+    unfavoriteView.querySelector('#grok-unfav-last-100').addEventListener('click', () => {
+      const count = Math.min(100, state.allItems.length);
+      const startIndex = state.allItems.length - count;
+      const indices = Array.from({ length: count }, (_, i) => startIndex + i);
+      executeUnfavorite(indices, 'last 100');
+    });
+
+    unfavoriteView.querySelector('#grok-unfav-last-200').addEventListener('click', () => {
+      const count = Math.min(200, state.allItems.length);
+      const startIndex = state.allItems.length - count;
+      const indices = Array.from({ length: count }, (_, i) => startIndex + i);
+      executeUnfavorite(indices, 'last 200');
+    });
+
+    unfavoriteView.querySelector('#grok-unfav-last-300').addEventListener('click', () => {
+      const count = Math.min(300, state.allItems.length);
+      const startIndex = state.allItems.length - count;
+      const indices = Array.from({ length: count }, (_, i) => startIndex + i);
+      executeUnfavorite(indices, 'last 300');
     });
 
     // Skip button

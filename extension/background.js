@@ -440,26 +440,107 @@ async function executeUnfavorites(tabId, indices) {
     return;
   }
 
-  notify(`Starting unfavorite process for ${indices.length} items...`, 'running');
-  notify('⚠️ Page may reload during this process', 'running');
+  // Map indices to groupIds (position on page, starting from 1)
+  const targetGroupIds = indices.map(idx => runState.items[idx]?.groupId).filter(id => id != null);
+
+  if (targetGroupIds.length === 0) {
+    notify('No valid items to unfavorite.', 'error');
+    return;
+  }
+
+  notify(`Starting unfavorite process for ${targetGroupIds.length} items at positions: ${targetGroupIds.join(', ')}...`, 'running');
 
   try {
-    await chrome.scripting.executeScript({
+    const result = await chrome.scripting.executeScript({
       target: { tabId },
-      func: async (selectedIndices, clickDelay) => {
-        const buttons = document.querySelectorAll('button[aria-label="Unsave"]');
+      func: async (groupIds, clickDelay) => {
+        const wait = (ms) => new Promise(r => setTimeout(r, ms));
+        const logs = [];
 
-        for (const idx of selectedIndices) {
-          if (buttons[idx]) {
-            buttons[idx].click();
-            await new Promise(r => setTimeout(r, clickDelay));
-          }
+        logs.push(`Finding buttons for positions: ${groupIds.join(', ')}`);
+
+        // Find scroll container
+        const allDivs = Array.from(document.querySelectorAll('div'));
+        const scrollContainer = allDivs.find(el => {
+          const style = getComputedStyle(el);
+          return (style.overflowY === 'scroll' || style.overflow === 'scroll') &&
+                 el.scrollHeight > el.clientHeight + 100;
+        });
+
+        if (!scrollContainer) {
+          return { success: 0, failed: groupIds.length, logs: ['No scroll container found'] };
         }
+
+        // Scroll to top and collect all buttons
+        scrollContainer.scrollTop = 0;
+        await wait(500);
+
+        const collectedButtons = [];
+        const seenButtons = new Set();
+
+        // Scroll through page collecting all buttons
+        for (let attempt = 0; attempt < 100; attempt++) {
+          const buttons = Array.from(document.querySelectorAll('button[aria-label="Unsave"]'));
+          buttons.forEach(btn => {
+            if (!seenButtons.has(btn)) {
+              seenButtons.add(btn);
+              collectedButtons.push(btn);
+            }
+          });
+
+          const step = Math.max(280, Math.floor((window.innerHeight || 900) * 0.85));
+          const oldTop = scrollContainer.scrollTop;
+          const newTop = Math.min(oldTop + step, scrollContainer.scrollHeight - scrollContainer.clientHeight);
+
+          if (newTop === oldTop) break;
+
+          scrollContainer.scrollTop = newTop;
+          await wait(400);
+        }
+
+        logs.push(`Collected ${collectedButtons.length} total buttons`);
+
+        let success = 0;
+        let failed = 0;
+
+        // Click buttons at specified positions
+        for (const groupId of groupIds) {
+          const buttonIndex = groupId - 1; // Convert 1-based to 0-based
+
+          if (buttonIndex < 0 || buttonIndex >= collectedButtons.length) {
+            logs.push(`✗ Position ${groupId}: out of range`);
+            failed++;
+            continue;
+          }
+
+          const button = collectedButtons[buttonIndex];
+          button.scrollIntoView({ block: 'center', behavior: 'instant' });
+          await wait(200);
+          button.click();
+          logs.push(`✓ Clicked position ${groupId}`);
+          success++;
+          await wait(clickDelay);
+        }
+
+        return { success, failed, logs };
       },
-      args: [indices, 100],
+      args: [targetGroupIds, 120],
     });
 
-    notify(`✓ Unfavorited ${indices.length} items`, 'idle');
+    const output = result[0]?.result || { success: 0, failed: targetGroupIds.length, logs: ['No result returned'] };
+
+    // Show logs
+    if (output.logs) {
+      output.logs.forEach(log => notify(log, 'running'));
+    }
+
+    if (output.success > 0) {
+      notify(`✓ Unfavorited ${output.success} items`, 'idle');
+    }
+    if (output.failed > 0) {
+      notify(`⚠️ ${output.failed} items failed`, 'error');
+    }
+
     // Reset items after unfavoriting
     runState.items = [];
   } catch (error) {
@@ -771,24 +852,25 @@ async function scrapeFavorites(debugEnabled = false) {
     containerGroups.get(key).push(item);
   });
 
-  // Assign sequential group IDs to each container (each favorite card)
-  let groupCounter = 0;
-  const items = [];
+  // Sort containers by containerId to ensure top-to-bottom order
+  // then assign sequential group IDs (1, 2, 3...) to each container
+  const sortedContainers = Array.from(containerGroups.entries()).sort((a, b) => a[0] - b[0]);
 
-  containerGroups.forEach((mediaGroup) => {
-    groupCounter += 1;
+  const items = [];
+  sortedContainers.forEach(([_containerId, mediaGroup], index) => {
+    const groupId = index + 1; // Start from 1 for user-friendly numbering
 
     mediaGroup.forEach((item) => {
       items.push({
         url: item.url,
         kind: item.kind,
-        groupId: groupCounter,
+        groupId: groupId,
         poster: item.poster || ''
       });
     });
   });
 
-  log(`Processed ${items.length} media items into ${groupCounter} favorite groups.`);
+  log(`Processed ${items.length} media items into ${sortedContainers.length} favorite groups.`);
 
   // Debug: log group statistics
   if (debugEnabled) {
@@ -805,14 +887,13 @@ async function scrapeFavorites(debugEnabled = false) {
 
 function prepareQueue(rawItems, sessionFolder) {
   const usedNames = new Set();
-  const typeCounters = { image: 0, video: 0 };
 
   // First, build the download queue (one entry per media file)
+  // Use groupId for filename numbering so files match their position on page
   const queue = rawItems.map((item) => {
     const kind = item.kind === 'video' ? 'video' : item.kind === 'image' ? 'image' : 'other';
-    typeCounters[kind] = (typeCounters[kind] || 0) + 1;
     const extension = deriveExtension(kind, item.url);
-    const base = `${typeCounters[kind]}-${kind}`;
+    const base = `${item.groupId}-${kind}`;
     const uniqueFilename = ensureUnique(`${base}${extension}`, usedNames);
     usedNames.add(uniqueFilename.toLowerCase());
 

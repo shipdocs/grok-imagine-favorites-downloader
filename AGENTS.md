@@ -1,31 +1,31 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- Core source lives in `extension/` and is loaded as the unpacked Chrome extension.
-- `background.js` acts as the service worker, managing queues and Chrome API calls.
-- `panel.js` and `panel.css` power the side-panel UI; keep shared assets in `extension/assets/` when needed.
-- `extension/manifest.json` holds metadata; repository-level docs (README, this guide) stay at the root.
+- Load the unpacked Chrome extension from `extension/`.
+- `background.js` hosts the Manifest V3 service worker, managing queue orchestration, retries, and unfavorite messaging.
+- `panel.js` renders the side-panel UI, progress log, download limit input, and post-run unfavorite workspace; matching styles live in `panel.css`.
+- Keep shared icons or HTML fragments in `extension/assets/` if needed, and store documentation at the repository root.
 
 ## Build, Test, and Development Commands
-- Install locally via `chrome://extensions` → enable **Developer Mode** → **Load unpacked** → select `extension/`.
-- Chrome hot-reloads changes; reopen the panel to confirm UI tweaks.
-- Manual flow: navigate to `https://grok.com/imagine/favorites`, open the panel, click **Start Download**, and watch progress plus `chrome://extensions/?errors=extension` for diagnostics.
+- There is no build step. Use Chrome: `chrome://extensions` → enable **Developer Mode** → **Load unpacked** → select `extension/`.
+- Chrome hot-reloads on save. Reopen the panel after UI edits to confirm changes.
+- Manual verification flow: visit `https://grok.com/imagine/favorites`, complete any verification prompts, open the panel, optionally set a download limit (`0` = all), toggle debug logs, press **Start Download**, and monitor the status feed plus `chrome://extensions/?errors=extension` for diagnostics.
 
 ## Coding Style & Naming Conventions
-- Use modern JavaScript with 2-space indentation; prefer `const`/`let` and arrow callbacks.
-- Keep helpers like `notify`, `prepareQueue`, and `deriveBaseName` pure where feasible.
-- CamelCase for variables/functions, kebab-case for asset filenames, and reuse stems from `buildFilename()` so paired media share a base name.
+- Modern JavaScript with 2-space indentation; prefer `const`/`let`, arrow callbacks, and early returns.
+- Keep helpers (`notify`, `prepareQueue`, `deriveBaseName`, `truncate`) pure and reusable.
+- Use camelCase for variables/functions, kebab-case for asset filenames, and reuse stems from `buildFilename()` so paired media share a base name.
 
 ## Testing Guidelines
-- No automated harness; rely on manual smoke passes during downloads.
-- Confirm detected count matches the progress bar, completed rows increment as files finish, and `grok-favorites/<datetime>/` folders appear in Downloads.
-- When editing DOM selectors in `scrapeFavorites()`, toggle the panel debug checkbox to log scroll metrics and capture console output for reviewers.
+- No automated harness. Perform smoke passes covering: complete download run, retry handling (simulate by throttling network), and the unfavorite workflow (filters, select all/none, skip, execute).
+- Capture debug console lines when adjusting selectors in `scrapeFavorites()`; attach to reviews for context.
+- Verify files land under `grok-favorites/<timestamp>/` and that the panel progress totals match detected items.
 
 ## Commit & Pull Request Guidelines
-- Write imperative commit subjects near 65 characters, e.g., `Streamline download queue handling`.
-- Separate documentation-only commits from functional changes when practical.
-- Pull requests should summarize manual verification (URL visited, counts, destination paths), attach panel screenshots or GIFs for UI updates, and link related tickets or issues.
+- Use imperative commit subjects ≈65 characters, e.g., `Add pagination fallback logging`.
+- Separate documentation-only changes when practical.
+- PRs should describe manual verification (URL visited, counts observed, retry outcomes, destination path), include screenshots or GIFs for UI updates, and link related issues or support tickets.
 
 ## Security & Configuration Tips
-- Avoid logging full asset URLs or user identifiers; use `truncate()` to redact sensitive segments.
-- Keep downloaded media inside the ignored `grok-favorites/` tree and never commit user data, credentials, or session artifacts.
+- Never log full asset URLs or user identifiers; rely on `truncate()` for obfuscation.
+- Ensure downloaded media stays inside the ignored `grok-favorites/` directory tree and avoid committing user data or session artifacts.

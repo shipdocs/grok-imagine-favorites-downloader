@@ -456,6 +456,16 @@ async function executeUnfavorites(tabId, indices) {
       func: async (groupIds, clickDelay) => {
         const wait = (ms) => new Promise(r => setTimeout(r, ms));
         const logs = [];
+        const MAX_FIND_ATTEMPTS = 3;
+        const SCROLL_ADJUSTMENT_PX = 50;
+
+        // Helper to calculate button position key
+        const getButtonPositionKey = (btn, scrollTop) => {
+          const rect = btn.getBoundingClientRect();
+          const absoluteY = Math.round(scrollTop + rect.top);
+          const absoluteX = Math.round(rect.left);
+          return { y: absoluteY, x: absoluteX, key: `${absoluteY}_${absoluteX}` };
+        };
 
         logs.push(`Finding buttons for positions: ${groupIds.join(', ')}`);
 
@@ -484,15 +494,11 @@ async function executeUnfavorites(tabId, indices) {
           const buttons = Array.from(document.querySelectorAll('button[aria-label="Unsave"]'));
           
           buttons.forEach(btn => {
-            const rect = btn.getBoundingClientRect();
-            // Calculate absolute Y position in the scrollable content
-            const absoluteY = Math.round(scrollContainer.scrollTop + rect.top);
-            const absoluteX = Math.round(rect.left);
-            const positionKey = `${absoluteY}_${absoluteX}`;
+            const position = getButtonPositionKey(btn, scrollContainer.scrollTop);
             
-            if (!seenPositions.has(positionKey)) {
-              seenPositions.add(positionKey);
-              buttonPositions.push({ y: absoluteY, x: absoluteX, key: positionKey });
+            if (!seenPositions.has(position.key)) {
+              seenPositions.add(position.key);
+              buttonPositions.push(position);
             }
           });
 
@@ -532,16 +538,13 @@ async function executeUnfavorites(tabId, indices) {
 
           // Find the button at this position
           let foundButton = null;
-          for (let findAttempt = 0; findAttempt < 3; findAttempt++) {
+          for (let findAttempt = 0; findAttempt < MAX_FIND_ATTEMPTS; findAttempt++) {
             const buttons = Array.from(document.querySelectorAll('button[aria-label="Unsave"]'));
             
             for (const btn of buttons) {
-              const rect = btn.getBoundingClientRect();
-              const absoluteY = Math.round(scrollContainer.scrollTop + rect.top);
-              const absoluteX = Math.round(rect.left);
-              const positionKey = `${absoluteY}_${absoluteX}`;
+              const position = getButtonPositionKey(btn, scrollContainer.scrollTop);
               
-              if (positionKey === targetPosition.key) {
+              if (position.key === targetPosition.key) {
                 foundButton = btn;
                 break;
               }
@@ -550,7 +553,7 @@ async function executeUnfavorites(tabId, indices) {
             if (foundButton) break;
             
             // Try slight adjustments in case of rounding issues
-            scrollContainer.scrollTop = targetScrollTop + (findAttempt - 1) * 50;
+            scrollContainer.scrollTop = targetScrollTop + (findAttempt - 1) * SCROLL_ADJUSTMENT_PX;
             await wait(200);
           }
 

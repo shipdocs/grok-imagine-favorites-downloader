@@ -471,20 +471,23 @@ async function executeUnfavorites(tabId, indices) {
           return { success: 0, failed: groupIds.length, logs: ['No scroll container found'] };
         }
 
-        // Scroll to top and collect all buttons
+        // Scroll to top first
         scrollContainer.scrollTop = 0;
         await wait(500);
 
-        const collectedButtons = [];
-        const seenButtons = new Set();
+        // Track all unique buttons we find with their approximate position index
+        const buttonSet = new Set();
+        const buttonOrderList = [];
 
-        // Scroll through page collecting all buttons
+        // Scroll through page collecting all buttons in encounter order
         for (let attempt = 0; attempt < 100; attempt++) {
           const buttons = Array.from(document.querySelectorAll('button[aria-label="Unsave"]'));
+          
+          // Add new buttons to our list in the order we encounter them
           buttons.forEach(btn => {
-            if (!seenButtons.has(btn)) {
-              seenButtons.add(btn);
-              collectedButtons.push(btn);
+            if (!buttonSet.has(btn)) {
+              buttonSet.add(btn);
+              buttonOrderList.push(btn);
             }
           });
 
@@ -498,7 +501,37 @@ async function executeUnfavorites(tabId, indices) {
           await wait(400);
         }
 
-        logs.push(`Collected ${collectedButtons.length} total buttons`);
+        // Now scroll back to top and re-collect buttons in proper DOM order
+        scrollContainer.scrollTop = 0;
+        await wait(500);
+
+        const orderedButtons = [];
+        const seenInOrder = new Set();
+
+        for (let attempt = 0; attempt < 100; attempt++) {
+          // Get buttons currently visible in the DOM
+          const visibleButtons = Array.from(document.querySelectorAll('button[aria-label="Unsave"]'));
+          
+          // Add them in DOM order if we haven't seen them yet
+          visibleButtons.forEach(btn => {
+            if (buttonSet.has(btn) && !seenInOrder.has(btn)) {
+              seenInOrder.add(btn);
+              orderedButtons.push(btn);
+            }
+          });
+
+          const step = Math.max(280, Math.floor((window.innerHeight || 900) * 0.85));
+          const oldTop = scrollContainer.scrollTop;
+          const newTop = Math.min(oldTop + step, scrollContainer.scrollHeight - scrollContainer.clientHeight);
+
+          if (newTop === oldTop) break;
+
+          scrollContainer.scrollTop = newTop;
+          await wait(400);
+        }
+
+        const collectedButtons = orderedButtons;
+        logs.push(`Collected ${collectedButtons.length} total buttons in top-to-bottom order`);
 
         let success = 0;
         let failed = 0;

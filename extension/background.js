@@ -456,6 +456,16 @@ async function executeUnfavorites(tabId, indices) {
       func: async (groupIds, clickDelay) => {
         const wait = (ms) => new Promise(r => setTimeout(r, ms));
         const logs = [];
+        const MAX_FIND_ATTEMPTS = 3;
+        const SCROLL_ADJUSTMENT_PX = 50;
+
+        // Helper to calculate button position key
+        const getButtonPositionKey = (btn, scrollTop) => {
+          const rect = btn.getBoundingClientRect();
+          const absoluteY = Math.round(scrollTop + rect.top);
+          const absoluteX = Math.round(rect.left);
+          return { y: absoluteY, x: absoluteX, key: `${absoluteY}_${absoluteX}` };
+        };
 
         logs.push(`Finding buttons for positions: ${groupIds.join(', ')}`);
 
@@ -471,20 +481,24 @@ async function executeUnfavorites(tabId, indices) {
           return { success: 0, failed: groupIds.length, logs: ['No scroll container found'] };
         }
 
-        // Scroll to top and collect all buttons
+        // Scroll to top first
         scrollContainer.scrollTop = 0;
         await wait(500);
 
-        const collectedButtons = [];
-        const seenButtons = new Set();
+        // Collect all button positions by scrolling through the page
+        // We track positions, not button elements, because of virtual scrolling
+        const buttonPositions = [];
+        const seenPositions = new Set();
 
-        // Scroll through page collecting all buttons
         for (let attempt = 0; attempt < 100; attempt++) {
           const buttons = Array.from(document.querySelectorAll('button[aria-label="Unsave"]'));
+          
           buttons.forEach(btn => {
-            if (!seenButtons.has(btn)) {
-              seenButtons.add(btn);
-              collectedButtons.push(btn);
+            const position = getButtonPositionKey(btn, scrollContainer.scrollTop);
+            
+            if (!seenPositions.has(position.key)) {
+              seenPositions.add(position.key);
+              buttonPositions.push(position);
             }
           });
 
@@ -498,7 +512,9 @@ async function executeUnfavorites(tabId, indices) {
           await wait(400);
         }
 
-        logs.push(`Collected ${collectedButtons.length} total buttons`);
+        // Sort by Y position to get top-to-bottom order
+        buttonPositions.sort((a, b) => a.y - b.y);
+        logs.push(`Collected ${buttonPositions.length} total button positions in top-to-bottom order`);
 
         let success = 0;
         let failed = 0;
@@ -507,19 +523,51 @@ async function executeUnfavorites(tabId, indices) {
         for (const groupId of groupIds) {
           const buttonIndex = groupId - 1; // Convert 1-based to 0-based
 
-          if (buttonIndex < 0 || buttonIndex >= collectedButtons.length) {
-            logs.push(`✗ Position ${groupId}: out of range`);
+          if (buttonIndex < 0 || buttonIndex >= buttonPositions.length) {
+            logs.push(`✗ Position ${groupId}: out of range (have ${buttonPositions.length} buttons)`);
             failed++;
             continue;
           }
 
-          const button = collectedButtons[buttonIndex];
-          button.scrollIntoView({ block: 'center', behavior: 'instant' });
-          await wait(200);
-          button.click();
-          logs.push(`✓ Clicked position ${groupId}`);
-          success++;
-          await wait(clickDelay);
+          const targetPosition = buttonPositions[buttonIndex];
+          
+          // Scroll to make the target position visible
+          const targetScrollTop = Math.max(0, targetPosition.y - window.innerHeight / 2);
+          scrollContainer.scrollTop = targetScrollTop;
+          await wait(300);
+
+          // Find the button at this position
+          let foundButton = null;
+          for (let findAttempt = 0; findAttempt < MAX_FIND_ATTEMPTS; findAttempt++) {
+            const buttons = Array.from(document.querySelectorAll('button[aria-label="Unsave"]'));
+            
+            for (const btn of buttons) {
+              const position = getButtonPositionKey(btn, scrollContainer.scrollTop);
+              
+              if (position.key === targetPosition.key) {
+                foundButton = btn;
+                break;
+              }
+            }
+            
+            if (foundButton) break;
+            
+            // Try slight adjustments in case of rounding issues
+            scrollContainer.scrollTop = targetScrollTop + (findAttempt - 1) * SCROLL_ADJUSTMENT_PX;
+            await wait(200);
+          }
+
+          if (foundButton) {
+            foundButton.scrollIntoView({ block: 'center', behavior: 'instant' });
+            await wait(200);
+            foundButton.click();
+            logs.push(`✓ Clicked position ${groupId}`);
+            success++;
+            await wait(clickDelay);
+          } else {
+            logs.push(`✗ Position ${groupId}: button not found after scrolling`);
+            failed++;
+          }
         }
 
         return { success, failed, logs };
